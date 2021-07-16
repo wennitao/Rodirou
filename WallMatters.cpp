@@ -338,8 +338,7 @@ std::pair<int, std::pair<int, int> > action(std::pair<int, std::pair<int, int> >
             return best_action ;
         }
     }
-    
-    dfs (0, st, -INF, INF, ai_side) ;
+    dfs (0, st, -2e9, 2e9, ai_side) ;
     do_action (best_action, ai_side) ;
     max_value = ai_side ? 2e9 : -2e9 ;
     return best_action ;

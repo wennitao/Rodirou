@@ -1,4 +1,4 @@
-#include "AIController.h"
+ #include "AIController.h"
 #include <vector>
 #include <queue>
 #include <utility>
@@ -128,11 +128,18 @@ void update_fence (status &st, int x, int y, bool c, int flag) {
     }
 }
 
+clock_t s ;
+
 int dfs (int depth, status &st, int alpha, int beta, bool side) {
     if (depth == 4 || st.pos[0].first == 0 || st.pos[1].first == 8) {
         int res = cal_cost (st) ;
         // std::cerr << depth << " "; st.print(); std::cerr << " " << res << std::endl ;
         return res ;
+    }
+
+    if (((float)clock() - s) / CLOCKS_PER_SEC >= 1.7) {
+        if (side == 0) return alpha ;
+        else return beta ;
     }
     
     // move
@@ -186,22 +193,21 @@ int dfs (int depth, status &st, int alpha, int beta, bool side) {
                         st.fence_cnt[side] -- ;
                         update_fence (st, i, j, 1, 1) ;
                         std::pair<int, int> tmp_res = cal_dis (st) ;
-                        if (tmp_res.first > 1e9 || tmp_res.second > 1e9) {
-                            st.fence_cnt[side] ++ ;
-                            update_fence (st, i, j, 0, 1) ;
-                            continue ;
+                        if (tmp_res.first < 1e9 && tmp_res.second < 1e9) {
+                            int res = dfs (depth + 1, st, alpha, beta, !side) ;
+                            alpha = std::max (alpha, res) ;
+                            if (depth == 0 && alpha > max_value) {
+                                max_value = alpha ;
+                                best_action = std::make_pair (1, std::make_pair (i, j)) ;
+                            }
+                            if (beta <= alpha) {
+                                st.fence_cnt[side] ++ ;
+                                update_fence (st, i, j, 0, 1) ;
+                                return alpha ;
+                            }
                         }
-                        int res = dfs (depth + 1, st, alpha, beta, !side) ;
                         st.fence_cnt[side] ++ ;
                         update_fence (st, i, j, 0, 1) ;
-                        alpha = std::max (alpha, res) ;
-                        if (depth == 0 && alpha > max_value) {
-                            max_value = alpha ;
-                            best_action = std::make_pair (1, std::make_pair (i, j)) ;
-                        }
-                        if (beta <= alpha) {
-                            return alpha ;
-                        }
                     }
 
                     // parallel
@@ -209,21 +215,71 @@ int dfs (int depth, status &st, int alpha, int beta, bool side) {
                         st.fence_cnt[side] -- ;
                         update_fence (st, i, j, 1, 2) ;
                         std::pair<int, int> tmp_res = cal_dis (st) ;
-                        if (tmp_res.first > 1e9 || tmp_res.second > 1e9) {
-                            st.fence_cnt[side] ++ ;
-                            update_fence (st, i, j, 0, 2) ;
-                            continue ;
+                        if (tmp_res.first < 1e9 && tmp_res.second < 1e9) {
+                            int res = dfs (depth + 1, st, alpha, beta, !side) ;
+                            alpha = std::max (alpha, res) ;
+                            if (depth == 0 && alpha > max_value) {
+                                max_value = alpha ;
+                                best_action = std::make_pair (2, std::make_pair (i, j)) ;
+                            }
+                            if (beta <= alpha) {
+                                st.fence_cnt[side] ++ ;
+                                update_fence (st, i, j, 0, 2) ;
+                                return alpha ;
+                            }
                         }
-                        int res = dfs (depth + 1, st, alpha, beta, !side) ;
                         st.fence_cnt[side] ++ ;
                         update_fence (st, i, j, 0, 2) ;
-                        alpha = std::max (alpha, res) ;
-                        if (depth == 0 && alpha > max_value) {
-                            max_value = alpha ;
-                            best_action = std::make_pair (2, std::make_pair (i, j)) ;
+                    }
+                }
+            
+            for (int x = 0; x < 8; x ++)
+                for (int y = 0; y < 8; y ++) {
+                    if (!st.wall_vis[x][y]) continue ;
+                    for (int d = 0; d < 4; d ++) {
+                        int i = x + dx[d], j = y + dy[d] ;
+                        if (i < 0 || i >= 8 || j < 0 || j >= 8 || st.wall_vis[i][j]) continue ;
+                        if (!st.wall[i][j][0] && !st.wall[i + 1][j][0] && !st.wall[i][j + 1][1] && !st.wall[i + 1][j + 1][1] && !st.wall_vis[i][j]) {
+                            st.fence_cnt[side] -- ;
+                            update_fence (st, i, j, 1, 1) ;
+                            std::pair<int, int> tmp_res = cal_dis (st) ;
+                            if (tmp_res.first < 1e9 && tmp_res.second < 1e9) {
+                                int res = dfs (depth + 1, st, alpha, beta, !side) ;
+                                alpha = std::max (alpha, res) ;
+                                if (depth == 0 && alpha > max_value) {
+                                    max_value = alpha ;
+                                    best_action = std::make_pair (1, std::make_pair (i, j)) ;
+                                }
+                                if (beta <= alpha) {
+                                    st.fence_cnt[side] ++ ;
+                                    update_fence (st, i, j, 0, 1) ;
+                                    return alpha ;
+                                }
+                            }
+                            st.fence_cnt[side] ++ ;
+                            update_fence (st, i, j, 0, 1) ;
                         }
-                        if (beta <= alpha) {
-                            return alpha ;
+
+                        // parallel
+                        if (!st.wall[i][j][2] && !st.wall[i][j + 1][2] && !st.wall[i + 1][j][3] && !st.wall[i + 1][j + 1][3] && !st.wall_vis[i][j]) {
+                            st.fence_cnt[side] -- ;
+                            update_fence (st, i, j, 1, 2) ;
+                            std::pair<int, int> tmp_res = cal_dis (st) ;
+                            if (tmp_res.first < 1e9 && tmp_res.second < 1e9) {
+                                int res = dfs (depth + 1, st, alpha, beta, !side) ;
+                                alpha = std::max (alpha, res) ;
+                                if (depth == 0 && alpha > max_value) {
+                                    max_value = alpha ;
+                                    best_action = std::make_pair (2, std::make_pair (i, j)) ;
+                                }
+                                if (beta <= alpha) {
+                                    st.fence_cnt[side] ++ ;
+                                    update_fence (st, i, j, 0, 2) ;
+                                    return alpha ;
+                                }
+                            }
+                            st.fence_cnt[side] ++ ;
+                            update_fence (st, i, j, 0, 2) ;
                         }
                     }
                 }
@@ -254,22 +310,21 @@ int dfs (int depth, status &st, int alpha, int beta, bool side) {
                         st.fence_cnt[side] -- ;
                         update_fence (st, i, j, 1, 1) ;
                         std::pair<int, int> tmp_res = cal_dis (st) ;
-                        if (tmp_res.first > 1e9 || tmp_res.second > 1e9) {
-                            st.fence_cnt[side] ++ ;
-                            update_fence (st, i, j, 0, 1) ;
-                            continue ;
+                        if (tmp_res.first < 1e9 && tmp_res.second < 1e9) {
+                            int res = dfs (depth + 1, st, alpha, beta, !side) ;
+                            beta = std::min (beta, res) ;
+                            if (depth == 0 && beta < max_value) {
+                                max_value = beta ;
+                                best_action = std::make_pair (1, std::make_pair (i, j)) ;
+                            }
+                            if (beta <= alpha) {
+                                st.fence_cnt[side] ++ ;
+                                update_fence (st, i, j, 0, 1) ;
+                                return beta ;
+                            }
                         }
-                        int res = dfs (depth + 1, st, alpha, beta, !side) ;
                         st.fence_cnt[side] ++ ;
                         update_fence (st, i, j, 0, 1) ;
-                        beta = std::min (beta, res) ;
-                        if (depth == 0 && beta < max_value) {
-                            max_value = beta ;
-                            best_action = std::make_pair (1, std::make_pair (i, j)) ;
-                        }
-                        if (beta <= alpha) {
-                            return beta ;
-                        }
                     }
 
                     // parallel
@@ -277,21 +332,72 @@ int dfs (int depth, status &st, int alpha, int beta, bool side) {
                         st.fence_cnt[side] -- ;
                         update_fence (st, i, j, 1, 2) ;
                         std::pair<int, int> tmp_res = cal_dis (st) ;
-                        if (tmp_res.first > 1e9 || tmp_res.second > 1e9) {
-                            st.fence_cnt[side] ++ ;
-                            update_fence (st, i, j, 0, 2) ;
-                            continue ;
+                        if (tmp_res.first < 1e9 && tmp_res.second < 1e9) {
+                            int res = dfs (depth + 1, st, alpha, beta, !side) ;
+                            beta = std::min (beta, res) ;
+                            if (depth == 0 && beta < max_value) {
+                                max_value = beta ;
+                                best_action = std::make_pair (2, std::make_pair (i, j)) ;
+                            }
+                            if (beta <= alpha) {
+                                st.fence_cnt[side] ++ ;
+                                update_fence (st, i, j, 0, 2) ;
+                                return beta ;
+                            }
                         }
-                        int res = dfs (depth + 1, st, alpha, beta, !side) ;
                         st.fence_cnt[side] ++ ;
                         update_fence (st, i, j, 0, 2) ;
-                        beta = std::min (beta, res) ;
-                        if (depth == 0 && beta < max_value) {
-                            max_value = beta ;
-                            best_action = std::make_pair (2, std::make_pair (i, j)) ;
+                    }
+                }
+            
+            for (int x = 0; x < 8; x ++)
+                for (int y = 0; y < 8; y ++) {
+                    if (!st.wall_vis[x][y]) continue ;
+                    for (int d = 0; d < 4; d ++) {
+                        int i = x + dx[d], j = y + dy[d] ;
+                        if (i < 0 || i >= 8 || j < 0 || j >= 8 || st.wall_vis[i][j]) continue ;
+                        // vertical
+                        if (!st.wall[i][j][0] && !st.wall[i + 1][j][0] && !st.wall[i][j + 1][1] && !st.wall[i + 1][j + 1][1] && !st.wall_vis[i][j]) {
+                            st.fence_cnt[side] -- ;
+                            update_fence (st, i, j, 1, 1) ;
+                            std::pair<int, int> tmp_res = cal_dis (st) ;
+                            if (tmp_res.first < 1e9 && tmp_res.second < 1e9) {
+                                int res = dfs (depth + 1, st, alpha, beta, !side) ;
+                                beta = std::min (beta, res) ;
+                                if (depth == 0 && beta < max_value) {
+                                    max_value = beta ;
+                                    best_action = std::make_pair (1, std::make_pair (i, j)) ;
+                                }
+                                if (beta <= alpha) {
+                                    st.fence_cnt[side] ++ ;
+                                    update_fence (st, i, j, 0, 1) ;
+                                    return beta ;
+                                }
+                            }
+                            st.fence_cnt[side] ++ ;
+                            update_fence (st, i, j, 0, 1) ;
                         }
-                        if (beta <= alpha) {
-                            return beta ;
+
+                        // parallel
+                        if (!st.wall[i][j][2] && !st.wall[i][j + 1][2] && !st.wall[i + 1][j][3] && !st.wall[i + 1][j + 1][3] && !st.wall_vis[i][j]) {
+                            st.fence_cnt[side] -- ;
+                            update_fence (st, i, j, 1, 2) ;
+                            std::pair<int, int> tmp_res = cal_dis (st) ;
+                            if (tmp_res.first < 1e9 && tmp_res.second < 1e9) {
+                                int res = dfs (depth + 1, st, alpha, beta, !side) ;
+                                beta = std::min (beta, res) ;
+                                if (depth == 0 && beta < max_value) {
+                                    max_value = beta ;
+                                    best_action = std::make_pair (2, std::make_pair (i, j)) ;
+                                }
+                                if (beta <= alpha) {
+                                    st.fence_cnt[side] ++ ;
+                                    update_fence (st, i, j, 0, 2) ;
+                                    return beta ;
+                                }
+                            }
+                            st.fence_cnt[side] ++ ;
+                            update_fence (st, i, j, 0, 2) ;
                         }
                     }
                 }
@@ -301,6 +407,8 @@ int dfs (int depth, status &st, int alpha, int beta, bool side) {
 }
 
 std::pair<int, std::pair<int, int> > action(std::pair<int, std::pair<int, int> > loc) {
+    s = clock() ;
+
     do_action (loc, 1 - ai_side) ;
 
     status st = cur_status ;
@@ -338,7 +446,8 @@ std::pair<int, std::pair<int, int> > action(std::pair<int, std::pair<int, int> >
             return best_action ;
         }
     }
-    dfs (0, st, -2e9, 2e9, ai_side) ;
+    
+    dfs (0, st, -INF, INF, ai_side) ;
     do_action (best_action, ai_side) ;
     max_value = ai_side ? 2e9 : -2e9 ;
     return best_action ;
